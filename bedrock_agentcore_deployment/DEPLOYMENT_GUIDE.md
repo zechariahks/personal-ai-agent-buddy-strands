@@ -5,7 +5,7 @@
 - **Deployment Type**: Custom Agent (FastAPI + ECR)
 - **Framework**: Strands-Agents SDK
 - **Region**: us-east-1
-- **Account**: 600627345285
+- **Account**: 1234567890
 
 ## Architecture
 ```
