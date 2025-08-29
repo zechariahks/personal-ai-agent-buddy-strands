@@ -1,7 +1,16 @@
-# Strands-Agents SDK Requirements
-# Core Strands-Agents framework
+# Strands Personal AI Agent - Bedrock AgentCore Requirements
+
+# FastAPI and server dependencies
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+ipython
+
+# Strands-Agents SDK
 strands-agents
 strands-agents-tools
+bedrock-agentcore
+bedrock-agentcore-starter-toolkit
 
 # Core dependencies
 requests>=2.31.0
@@ -16,7 +25,7 @@ google-auth-oauthlib>=1.0.0
 google-auth-httplib2>=0.2.0
 google-api-python-client>=2.88.0
 
-# Optional model providers (choose based on your preference)
+# Model providers (choose based on your preference)
 # OpenAI (if using OpenAI models)
 openai>=1.0.0
 
@@ -35,5 +44,4 @@ rich>=13.0.0          # For enhanced terminal formatting
 # Development and testing (optional)
 pytest>=7.0.0
 pytest-asyncio>=0.21.0
-black>=23.0.0
-flake8>=6.0.0
+httpx>=0.25.0         # For testing FastAPI endpoints

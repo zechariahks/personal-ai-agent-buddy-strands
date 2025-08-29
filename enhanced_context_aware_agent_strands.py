@@ -481,13 +481,14 @@ class StrandsEnhancedContextAwareAgent(StrandsBasicAgent):
             weather_info = weather_agent.analyze_weather_impact(city)
             
             if weather_info and "error" not in weather_info:
-                # Check calendar conflicts
-                calendar_conflicts = calendar_agent.check_weather_conflicts(weather_info)
+                # # Check calendar conflicts
+                # calendar_conflicts = calendar_agent.check_weather_conflicts(weather_info)
                 
-                # Get decision recommendations
-                recommendations = decision_agent.make_weather_decision(weather_info, calendar_conflicts)
+                # # Get decision recommendations
+                # recommendations = decision_agent.make_weather_decision(weather_info, calendar_conflicts)
                 
-                return f"{weather_info['analysis']}\n\n{calendar_conflicts}\n\n{recommendations}"
+                # return f"{weather_info['analysis']}\n\n{calendar_conflicts}\n\n{recommendations}"
+                return f"{weather_info['analysis']}\n"
             else:
                 return f"❌ Unable to analyze weather for {city}. Please check your weather API configuration."
         

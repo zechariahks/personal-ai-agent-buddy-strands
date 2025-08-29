@@ -272,6 +272,249 @@ personal-ai-agent-buddy-strands/
     └── tool_integration_demo.py      # Built-in tools demonstration
 ```
 
+
+## Bedrock AgentCore Integration
+
+This project includes a Bedrock AgentCore configuration for easy deployment and management.
+
+The deployment process is streamlined through automation:
+
+### 1. **Prerequisites Setup**
+```bash
+# clone the repository
+git clone https://github.com/zechariahks/personal-ai-agent-buddy-strands.git
+cd personal-ai-agent-buddy-strands
+
+# Install dependencies and prepare environment
+uv venv
+uv pip install -r requirements.txt
+source .venv/bin/activate
+
+# Configure AWS credentials
+aws configure
+
+# Verify Docker installation
+docker --version
+```
+
+### 2. **Deployment Option 1: Automated Deployment using agentcore CLI**
+
+In this method, we will use agentcore CLI that script handles everything from ECR image creation to AgentCore runtime deployment.
+
+```bash
+# Configure and deploy (auto-creates all required resources)
+agentcore configure -e bedrock_buddy_agent.py 
+
+agentcore launch --agent bedrock_buddy_agent --env  OPENAI_API_KEY="<OPENAI_KEY_VALUE>" --env WEATHER_API_KEY="<WEATHER_API_KEY_VALUE>" 
+```
+
+Above commands will:
+- ✅ Validate all prerequisites and dependencies
+- Creates CodeBuild project and ECR repository
+- 🐳 Build optimized multi-stage Docker image
+- 📤 Pushes to ECR with automatic authentication
+- 🤖 Deploys Bedrock AgentCore runtime with proper configuration
+
+To know the status of your deployed agent, use:
+```bash
+agentcore status
+```
+Output will be similar to:
+
+```bash
+╭────────────────────────────────────────────────────── Bedrock AgentCore Agent Status ──────────────────────────────────────────────────────╮
+│ Status of the current Agent:                                                                                                               │
+│                                                                                                                                            │
+│ Agent Name: bedrock_buddy_agent                                                                                                            │
+│ Agent ID: bedrock_buddy_agent-XiTGye2jXU                                                                                                   │
+│ Agent Arn: arn:aws:bedrock-agentcore:us-east-1:121212121212:runtime/bedrock_buddy_agent-XiTGye2jXU                                         │
+│ Created at: 2025-08-29 15:13:02.632120+00:00                                                                                               │
+│ Last Updated at: 2025-08-29 15:13:03.564833+00:00                                                                                          │
+│ Configuration details:                                                                                                                     │
+│ - region: us-east-1                                                                                                                        │
+│ - account: 121212121212                                                                                                                    │
+│ - execution role: arn:aws:iam::121212121212:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-3a339c7039                                     │
+│ - ecr repository: 121212121212.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-bedrock_buddy_agent                                       │
+│                                                                                                                                            │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────── Bedrock AgentCore Endpoint Status ─────────────────────────────────────────────────────╮
+│ Status of the current Endpoint:                                                                                                            │
+│                                                                                                                                            │
+│ Endpoint Id: DEFAULT                                                                                                                       │
+│ Endpoint Name: DEFAULT                                                                                                                     │
+│ Endpoint Arn: arn:aws:bedrock-agentcore:us-east-1:121212121212:runtime/bedrock_buddy_agent-XiTGye2jXU/runtime-endpoint/DEFAULT             │
+│ Agent Arn: arn:aws:bedrock-agentcore:us-east-1:121212121212:runtime/bedrock_buddy_agent-XiTGye2jXU                                         │
+│ STATUS: READY                                                                                                                              │
+│ Last Updated at: 2025-08-29 15:13:49.618919+00:00                                                                                          │
+│                                                                                                                                            │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+📋 Agent logs available at:
+   /aws/bedrock-agentcore/runtimes/bedrock_buddy_agent-XiTGye2jXU-DEFAULT
+   /aws/bedrock-agentcore/runtimes/bedrock_buddy_agent-XiTGye2jXU-DEFAULT/runtime-logs
+```
+
+**Test your deployed agent**
+
+To test the deployed agent, use the following command:
+
+```bash
+agentcore invoke '{"message": "whats the weather in New York"}'
+```
+
+Output will be similar to: Response object has the content from the agent.
+
+```bash
+Payload:
+{
+  "message": "whats the weather in New York"
+}
+Invoking BedrockAgentCore agent 'bedrock_buddy_agent' via cloud endpoint
+Session ID: 81f9b39d-c416-4743-b838-02ceb41c6c1a
+
+Response:
+{
+  "ResponseMetadata": {
+    <redacted for brevity>
+  },
+  "runtimeSessionId": "81f9b39d-c416-4743-b838-02ceb41c6c1a",
+  <redacted for brevity>
+  "contentType": "application/json",
+  "statusCode": 200,
+  "response": [
+    "b'\"## Weather Analysis for New York\\\\n\\\\n### Current Conditions\\\\n- **Temperature**: 23.65\\xc2\\xb0C (74.6\\xc2\\xb0F) - Feels 
+like 23.45\\xc2\\xb0C (74.2\\xc2\\xb0F)\\\\n- **Sky Condition**: Clear Sky \\xe2\\x98\\x80\\xef\\xb8\\x8f\\\\n- **Humidity**: 53% (comfortable
+level)\\\\n- **Wind Speed**: 2.57 m/s (5.7 mph) - Light breeze\\\\n- **Atmospheric Pressure**: 1014 hPa (stable conditions)\\\\n\\\\n### 
+Detailed Weather Analysis\\\\n\\\\n**Temperature Assessment**: The temperature of 23.65\\xc2\\xb0C (74.6\\xc2\\xb0F) is in the ideal comfort 
+zone for most outdoor activities. This temperature allows for comfortable movement without overheating or feeling cold.\\\\n\\\\n**Sky 
+Conditions**: Clear skies provide excellent visibility and maximum sunlight exposure, making it perfect for photography, sightseeing, and 
+outdoor sports.\\\\n\\\\n**Humidity Level**: At 53%, the humidity is at an optimal level - not too dry to cause discomfort, and not too humid 
+to feel sticky or oppressive.\\\\n\\\\n**Wind Conditions**: The light breeze at 2.57 m/s provides natural cooling without being disruptive to 
+outdoor activities.\\\\n\\\\n### Outdoor Ac'",
+    "b'they\\'re ideal for any outdoor plans!\\\\n\\\\n**Overall Suitability Rating: 9.5/10** - Nearly perfect weather conditions for outdoor 
+activities!\\\\n\\\\n\"'"
+  ]
+```
+
+You can also write custom scripts to interact with the deployed agent using the provided endpoint. You will use the `boto3` client to invoke the agent runtime as shown below:
+
+```python
+agentcore_client = boto3.client('bedrock-agentcore', region_name='us-east-1')
+        
+        response = agentcore_client.invoke_agent_runtime(
+            agentRuntimeArn=os.getenv('AGENT_RUNTIME_ARN', agent_runtime_arn),
+            qualifier="DEFAULT",
+            runtimeSessionId=session_id,
+            payload=json.dumps({
+                "message": message,
+                "session_id": session_id
+            })
+        )
+```
+
+A detailed example is provided in the `bedrock_invoke_runtime_lambda.py` script. To test it locally, run:
+
+```bash
+python bedrock_invoke_runtime_lambda.py --agent-runtime-arn "arn:aws:bedrock-agentcore:us-east-1:12345677777:runtime/bedrock_buddy_agent-XiTGye2jXU" --input '{
+    "message": "What is the weather like in Portland?",
+    "session_id": "my-session-123"
+  }'
+```
+
+**Note**: Replace the `agent-runtime-arn` with your actual deployed agent runtime ARN.
+
+The output will be similar to:
+
+```bash
+{'message': 'What is the weather like in Portland?', 'session_id': 'my-session-123'}
+Response (JSON):
+## Weather Analysis for New York
+
+### Current Conditions:
+- **Temperature**: 23.61°C (74.5°F) - feels like 23.38°C (74.1°F)
+- **Sky Conditions**: Clear Sky ☀️
+- **Humidity**: 52% (comfortable level)
+- **Wind**: Light breeze at 2.57 m/s (5.7 mph)
+- **Atmospheric Pressure**: 1014 hPa (stable)
+
+### Detailed Analysis:
+
+**Temperature Rating**: ⭐⭐⭐⭐⭐ (Excellent)
+- Perfect temperature range for outdoor activities
+- No need for heavy clothing - light layers recommended
+- Comfortable for extended periods outside
+
+**Weather Conditions**: ⭐⭐⭐⭐⭐ (Excellent)
+- Clear skies provide excellent visibility
+- No precipitation concerns
+- Abundant natural light for outdoor activities
+
+**Comfort Level**: ⭐⭐⭐⭐⭐ (Excellent)
+- Moderate humidity prevents excessive sweating
+- Light wind provides natural cooling
+- Stable pressure indicates settled weather
+
+### Outdoor Activity Recommendations:
+
+**Highly Recommended Activities** (Suitability: 9-10/10):
+- 🚴‍♂️ **Cycling** - Perfect temperature and clear visibility
+- 🏃‍♂️ **Jogging/Running** - Ideal conditions with light cooling breeze
+- 🧺 **Picnicking** - Clear skies and comfortable temperature
+- 🏸 **Outdoor sports** (tennis, badminton, frisbee)
+- 📸 **Photography walks** - Excellent natural lighting
+- 🌳 **Hiking in nearby parks** (Central Park, Prospect Park)
+
+**Good Activities** (Suitability: 7-8/10):
+- ⛵ **Water activities** - Pleasant but check water temperature
+- 🏕️ **Outdoor dining** - Very comfortable for al fresco meals
+- 🎾 **Court sports** - Great visibility and comfortable temperature
+
+**What to Wear**:
+- Light, breathable clothing
+- Sunglasses and hat for sun protection
+- Light sunscreen (clear skies mean direct sun exposure)
+- Comfortable walking shoes
+
+**Overall Suitability Rating**: ⭐⭐⭐⭐⭐ (10/10)
+
+This is exceptional weather for virtually any outdoor activity in New York! The combination of clear skies, perfect temperature, and low humidity creates ideal conditions for spending time outside. Take advantage of this beautiful weather!
+
+{"response": <redacted>, "session_id": "1c978365-8966-4030-8321-c57682d1ff15", "success": true}
+```
+
+### 3. **Deployment Option 2: Manual ECR Image Preparation and deploy runtime**
+
+This is an alternative method where you manually prepare the ECR image and deploy the AgentCore runtime using  `bedrock-agentcore-control` CLI.
+
+**Deploy ECR image for Agents:**
+```bash
+# Deploy ECR image and prepare AgentCore config file
+python bedrock_agentcore_deployment.py --region us-east-1
+```
+
+This single command:
+- ✅ Validates all prerequisites and dependencies
+- 🏗️ Creates ECR repository with proper tagging
+- 📁 Copies all Strands agent files into the container
+- 🐳 Builds optimized multi-stage Docker image
+- 📤 Pushes to ECR with automatic authentication
+- 🤖 Generates AgentCore configuration
+- 📚 Creates comprehensive deployment documentation
+
+**Deploy Bedrock AgentCore Runtime:**
+
+```bash
+# Deploy AgentCore runtime using AgentCore config file
+aws bedrock-agentcore-control create-agent-runtime --cli-input-json file://agentcore_config.json
+```
+
+This command will deploy the Bedrock AgentCore runtime using the generated configuration file.
+
+**Test your deployed agent**
+
+To test the deployed agent, use the same `agentcore invoke` command or `bedrock_invoke_runtime_lambda.py` file as shown in Deployment Option 1.
+
+
 ## 🔧 Configuration Guide
 
 ### Environment Variables
@@ -528,12 +771,6 @@ We welcome contributions! See our [Contributing Guide](CONTRIBUTING.md) for deta
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
-
-- **Strands-Agents Team** for the incredible SDK and framework
-- **Original Project Contributors** for the foundational work
-- **Open Source Community** for inspiration and support
-- **AI Research Community** for advancing the field
 
 ## 🎉 Get Started Now!
 

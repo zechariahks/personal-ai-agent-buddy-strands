@@ -10,8 +10,10 @@ import json
 import subprocess
 import time
 import boto3
+import uuid
 from datetime import datetime
 from typing import Dict, Any
+from dotenv import load_dotenv
 
 class StrandsAgentCoreDeployer:
     """Deploy Strands Personal AI Agent to Bedrock AgentCore using Custom Agent approach"""
@@ -70,13 +72,13 @@ class StrandsAgentCoreDeployer:
             return False
         
         # Check if required files exist
-        required_files = ['app.py', 'Dockerfile', 'requirements.txt']
-        for file in required_files:
-            if os.path.exists(file):
-                print(f"✅ {file}: Found")
-            else:
-                print(f"❌ {file}: Missing")
-                return False
+        # required_files = ['app.py', 'Dockerfile', 'requirements.txt']
+        # for file in required_files:
+        #     if os.path.exists(file):
+        #         print(f"✅ {file}: Found")
+        #     else:
+        #         print(f"❌ {file}: Missing")
+        #         return False
         
         print("✅ All prerequisites met!")
         return True
@@ -137,35 +139,46 @@ class StrandsAgentCoreDeployer:
             subprocess.run(docker_login_cmd, input=password, text=True, check=True)
             print("✅ Docker login to ECR successful")
             
-            # Copy agent files to deployment directory
-            print("📁 Copying agent files...")
-            agent_files = [
-                '../enhanced_context_aware_agent_strands.py',
-                '../basic_agent_strands.py',
-                '../weather_tool.py',
-                '../bible_verse_tool.py',
-                '../x_posting_tool.py',
-                '../google_calendar_tool.py'
-            ]
+            # # Copy agent files to deployment directory
+            # print("📁 Copying agent files...")
+            # agent_files = [
+            #     '../../enhanced_context_aware_agent_strands.py',
+            #     '../../basic_agent_strands.py',
+            #     '../../weather_tool.py',
+            #     '../../bible_verse_tool.py',
+            #     '../../x_posting_tool.py',
+            #     '../../google_calendar_tool.py'
+            # ]
             
-            for file in agent_files:
-                if os.path.exists(file):
-                    subprocess.run(['cp', file, '.'], check=True)
-                    print(f"✅ Copied {file}")
+            # for file in agent_files:
+            #     if os.path.exists(file):
+            #         subprocess.run(['cp', file, '../'], check=True)
+            #         print(f"✅ Copied {file}")
             
             # Build Docker image
             print("🔨 Building Docker image...")
             image_tag = f"{repository_uri}:latest"
             
             subprocess.run([
-                'docker', 'build', '-t', image_tag, '.'
+                'docker', 'build', '--no-cache', '-t', image_tag, '.'
             ], check=True)
             print(f"✅ Built Docker image: {image_tag}")
             
-            # Push image to ECR
+            # Push image to ECR with retry logic
             print("📤 Pushing image to ECR...")
-            subprocess.run(['docker', 'push', image_tag], check=True)
-            print(f"✅ Pushed image to ECR: {image_tag}")
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    subprocess.run(['docker', 'push', image_tag], check=True, timeout=600)
+                    print(f"✅ Pushed image to ECR: {image_tag}")
+                    break
+                except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+                    if attempt < max_retries - 1:
+                        print(f"⚠️ Push attempt {attempt + 1} failed, retrying...")
+                        time.sleep(10)  # Wait 10 seconds before retry
+                    else:
+                        print(f"❌ All push attempts failed. Try: docker system prune -f && docker push {image_tag}")
+                        raise
             
             return image_tag
             
@@ -177,164 +190,96 @@ class StrandsAgentCoreDeployer:
             return None
     
     def deploy_to_agentcore(self, image_uri):
-        """Deploy the agent to Bedrock AgentCore"""
-        print(f"\n🤖 Deploying to Bedrock AgentCore...")
-        
+        """Build a runtime payload using the AWS CLI generated skeleton"""
+        print(f"\n🤖 Preparing Bedrock AgentCore runtime configuration...")
+
         try:
-            # Create AgentCore application
-            app_config = {
-                'name': self.agent_name,
-                'description': 'Enhanced Personal AI Agent built with Strands-Agents SDK',
-                'runtime': {
-                    'type': 'CUSTOM',
-                    'image': {
-                        'uri': image_uri,
-                        'port': 8000
-                    }
-                },
-                'environment': {
-                    'variables': {
-                        'PYTHONPATH': '/app',
-                        'PYTHONUNBUFFERED': '1',
-                        'PORT': '8000'
-                    }
-                },
-                'tags': {
-                    'Framework': 'StrandsAgents',
-                    'Version': '2.0',
-                    'DeploymentType': 'CustomAgent'
-                }
+            load_dotenv()
+
+            # Generate CLI skeleton for the create-agent-runtime operation
+            print("🔧 Generating CLI skeleton from aws-cli...")
+            result = subprocess.run(
+                ["aws", "bedrock-agentcore-control", "create-agent-runtime", "--generate-cli-skeleton"],
+                capture_output=True, text=True, check=True
+            )
+            skeleton = json.loads(result.stdout)
+
+            # Fill required top-level fields
+            skeleton["agentRuntimeName"] = os.getenv("AGENTCORE_RUNTIME_NAME", self.agent_name)
+            skeleton["description"] = skeleton.get("description") or "Strands Personal AI Agent (FastAPI container) - generated"
+            skeleton["clientToken"] = os.getenv("AGENTCORE_CLIENT_TOKEN", str(uuid.uuid4()))
+
+            # agentRuntimeArtifact: prefer containerConfiguration if present in skeleton
+            artifact = skeleton.get("agentRuntimeArtifact", {})
+            container_cfg = {
+                "containerUri": image_uri
             }
-            
-            # Note: This is a placeholder for the actual Bedrock AgentCore API
-            # The actual API calls will depend on the final AgentCore service implementation
-            print("📋 AgentCore Configuration:")
-            print(json.dumps(app_config, indent=2))
-            
-            # For now, we'll create a configuration file that can be used with the AgentCore CLI
-            with open('agentcore_config.json', 'w') as f:
-                json.dump(app_config, f, indent=2)
-            
-            print("✅ AgentCore configuration saved to agentcore_config.json")
-            print("💡 Use this configuration with the Bedrock AgentCore CLI when available")
-            
+            if "containerConfiguration" in artifact:
+                artifact["containerConfiguration"].update(container_cfg)
+            else:
+                skeleton["agentRuntimeArtifact"] = {"containerConfiguration": container_cfg}
+
+            # roleArn
+            skeleton["roleArn"] = os.getenv(
+                "AGENTCORE_ROLE_ARN",
+                f"arn:aws:iam::{self.account_id}:role/service-role/AmazonBedrockAgentCoreRuntimeDefaultServiceRole-6dppq"
+            )
+
+            # networkConfiguration
+            network_mode = os.getenv("AGENTCORE_NETWORK_MODE", "PUBLIC")
+            skeleton["networkConfiguration"] = {"networkMode": network_mode}           
+
+            # protocolConfiguration
+            proto = skeleton.get("protocolConfiguration", {})
+            proto["serverProtocol"] = os.getenv("AGENTCORE_SERVER_PROTOCOL", "HTTP")
+            skeleton["protocolConfiguration"] = proto
+
+            # environment variables
+            env_vars = {
+                "PYTHONPATH": "/app",
+                "PYTHONUNBUFFERED": "1",
+                "PORT": "8080"
+            }
+            extra_env = os.getenv("AGENTCORE_ENV_VARS")
+            if extra_env:
+                for pair in [p for p in extra_env.split(",") if "=" in p]:
+                    k, v = pair.split("=", 1)
+                    env_vars[k.strip()] = v.strip()
+            skeleton["environmentVariables"] = env_vars
+
+            # Remove incomplete authorizerConfiguration
+            if "authorizerConfiguration" in skeleton:
+                ac = skeleton.get("authorizerConfiguration")
+                remove_ac = False
+                if not ac or not isinstance(ac, dict):
+                    remove_ac = True
+                else:
+                    cja = ac.get("customJWTAuthorizer")
+                    if not cja or not isinstance(cja, dict):
+                        remove_ac = True
+                    else:
+                        disc = cja.get("discoveryUrl", "")
+                        if not disc or not isinstance(disc, str) or disc.strip() == "":
+                            remove_ac = True
+
+                if remove_ac:
+                    print("ℹ️ Removing incomplete authorizerConfiguration from payload.")
+                    skeleton.pop("authorizerConfiguration", None)
+
+            # Save the final payload
+            with open("agentcore_config.json", "w") as f:
+                json.dump(skeleton, f, indent=2)
+
+            print("✅ agentcore_config.json created using AWS CLI skeleton.")
             return True
-            
-        except Exception as e:
-            print(f"❌ Error deploying to AgentCore: {str(e)}")
+
+        except subprocess.CalledProcessError as e:
+            print("❌ Failed to generate CLI skeleton. Is aws-cli v2 installed and configured?")
+            print(e.stderr or str(e))
             return False
-    
-    def test_local_deployment(self):
-        """Test the agent locally before deploying"""
-        print(f"\n🧪 Testing Local Deployment...")
-        
-        try:
-            # Start the FastAPI server in background
-            print("🚀 Starting local FastAPI server...")
-            
-            # Check if we can import the app
-            sys.path.insert(0, '.')
-            from app import app
-            
-            print("✅ FastAPI app imported successfully")
-            print("💡 To test locally, run: python app.py")
-            print("📋 Available endpoints:")
-            print("   • GET  /health    - Health check")
-            print("   • POST /invoke    - Main agent interaction")
-            print("   • POST /weather   - Weather capability")
-            print("   • POST /calendar  - Calendar capability")
-            print("   • POST /social    - Social media capability")
-            
-            return True
-            
         except Exception as e:
-            print(f"❌ Local testing error: {str(e)}")
+            print(f"❌ Error preparing AgentCore configuration: {e}")
             return False
-    
-    def create_deployment_guide(self):
-        """Create deployment guide and next steps"""
-        print(f"\n📚 Creating Deployment Guide...")
-        
-        guide_content = f"""# Strands Personal AI Agent - Bedrock AgentCore Deployment
-
-## Deployment Summary
-- **Agent Name**: {self.agent_name}
-- **Deployment Type**: Custom Agent (FastAPI + ECR)
-- **Framework**: Strands-Agents SDK
-- **Region**: {self.region}
-- **Account**: {self.account_id}
-
-## Architecture
-```
-Bedrock AgentCore Runtime
-├── ECR Container Image
-│   ├── FastAPI Server (app.py)
-│   ├── Strands Enhanced Agent
-│   └── All Capabilities (Weather, Calendar, Social)
-├── Custom HTTP Interface
-│   ├── /invoke - Main agent interaction
-│   ├── /weather - Weather capability
-│   ├── /calendar - Calendar capability
-│   └── /social - Social media capability
-└── Auto-scaling & Load Balancing
-```
-
-## Next Steps
-
-### 1. Complete AgentCore Deployment
-When Bedrock AgentCore becomes available:
-```bash
-# Use the generated configuration
-aws bedrock-agentcore create-application --cli-input-json file://agentcore_config.json
-```
-
-### 2. Configure Environment Variables
-Set up the following environment variables in AgentCore:
-- `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` - AI model provider
-- `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET` - X API
-- `OPENWEATHER_API_KEY` - Weather API
-- Google Calendar OAuth credentials
-
-### 3. Test the Deployment
-```bash
-# Health check
-curl https://your-agentcore-endpoint/health
-
-# Agent interaction
-curl -X POST https://your-agentcore-endpoint/invoke \\
-  -H "Content-Type: application/json" \\
-  -d '{{"message": "What\\'s the weather in New York?", "session_id": "test-123"}}'
-```
-
-### 4. Monitor and Scale
-- Use AgentCore monitoring dashboards
-- Configure auto-scaling based on request volume
-- Set up alerts for errors and performance issues
-
-## Local Testing
-To test locally before deployment:
-```bash
-python app.py
-# Then visit http://localhost:8000/docs for interactive API documentation
-```
-
-## Capabilities Available
-- ✅ Weather analysis with impact assessment
-- ✅ Google Calendar integration
-- ✅ X (Twitter) posting with Bible verses
-- ✅ Multi-agent coordination
-- ✅ Contextual decision making
-- ✅ FastAPI REST endpoints
-- ✅ Health monitoring
-- ✅ Auto-scaling ready
-
-Generated on: {datetime.now().isoformat()}
-"""
-        
-        with open('DEPLOYMENT_GUIDE.md', 'w') as f:
-            f.write(guide_content)
-        
-        print("✅ Deployment guide created: DEPLOYMENT_GUIDE.md")
     
     def deploy_all(self):
         """Execute complete deployment process"""
@@ -355,16 +300,9 @@ Generated on: {datetime.now().isoformat()}
             if not image_uri:
                 return False
             
-            # Step 4: Test local deployment
-            if not self.test_local_deployment():
-                print("⚠️ Local testing failed, but continuing with deployment...")
-            
-            # Step 5: Deploy to AgentCore (prepare configuration)
+            # Step 4: Deploy to AgentCore (prepare configuration)
             if not self.deploy_to_agentcore(image_uri):
                 return False
-            
-            # Step 6: Create deployment guide
-            self.create_deployment_guide()
             
             end_time = time.time()
             duration = end_time - start_time
@@ -374,14 +312,6 @@ Generated on: {datetime.now().isoformat()}
             print(f"⏱️ Total time: {duration:.2f} seconds")
             print(f"🐳 Docker image: {image_uri}")
             print(f"📋 Configuration: agentcore_config.json")
-            print(f"📚 Guide: DEPLOYMENT_GUIDE.md")
-            
-            print(f"\n📋 Next Steps:")
-            print("1. Review the generated agentcore_config.json")
-            print("2. Wait for Bedrock AgentCore availability")
-            print("3. Deploy using AgentCore CLI or Console")
-            print("4. Configure environment variables")
-            print("5. Test the deployed agent")
             
             return True
             
