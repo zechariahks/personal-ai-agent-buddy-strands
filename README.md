@@ -55,6 +55,8 @@ A next-generation implementation of intelligent AI agents using the **Strands-Ag
 └─────────────────────────────────────────────────────────────┘
 ```
 
+![Bedrock AgentCore Workflow of our agent](<Bedrock-AgentCore-Architecture.png>)
+
 ### Specialist Agents
 
 1. **🌤️ Weather Agent** - Advanced weather analysis with activity recommendations
